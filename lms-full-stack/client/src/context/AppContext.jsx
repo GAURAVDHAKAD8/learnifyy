@@ -68,31 +68,42 @@ export const AppContextProvider = (props) => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            if (data.success) {
-                setUserData(data.user);
-                setIsEducator(user.publicMetadata?.role === 'educator' || data.user?.role === 'educator');
-                fetchUserAttempt.current = 0; // Reset on success
-                setIsUserDataLoading(false); // Stop loading on success
+          if (data.success) {
+            setUserData(data.user);
+            // Use database role primarily
+            setIsEducator(data.user?.role === "educator");
+            fetchUserAttempt.current = 0;
+            setIsUserDataLoading(false); // Make sure loading stops
+          } else {
+            if (
+              data.message === "User Not Found" &&
+              fetchUserAttempt.current < 3
+            ) {
+              // Retry up to 2 times (total 3 attempts)
+              console.warn(
+                `User Not Found in DB (Attempt ${fetchUserAttempt.current}). Retrying in 2 seconds...`
+              );
+              fetchUserAttempt.current += 1;
+              setTimeout(() => fetchUserData(true), 2000); // Call fetchUserData again after 2s, marking it as a retry
+              // Keep loading state true while retrying
             } else {
-                 if (data.message === 'User Not Found' && fetchUserAttempt.current < 3) { // Retry up to 2 times (total 3 attempts)
-                      console.warn(`User Not Found in DB (Attempt ${fetchUserAttempt.current}). Retrying in 2 seconds...`);
-                      fetchUserAttempt.current += 1;
-                      setTimeout(() => fetchUserData(true), 2000); // Call fetchUserData again after 2s, marking it as a retry
-                      // Keep loading state true while retrying
-                 } else {
-                     // If it's another error OR max retries reached for "User Not Found"
-                     if (data.message !== 'User Not Found') {
-                         toast.error(`Fetch User Data Error: ${data.message}`);
-                     } else {
-                          console.error("User Not Found in DB after multiple attempts. Check webhook.");
-                          toast.error("Could not load user profile. Please try refreshing."); // User-facing error after retries
-                     }
-                      setUserData(null);
-                      setIsEducator(user.publicMetadata?.role === 'educator');
-                      setIsUserDataLoading(false); // Stop loading on final failure
-                      fetchUserAttempt.current = 0; // Reset attempts
-                 }
+              // If it's another error OR max retries reached for "User Not Found"
+              if (data.message !== "User Not Found") {
+                toast.error(`Fetch User Data Error: ${data.message}`);
+              } else {
+                console.error(
+                  "User Not Found in DB after multiple attempts. Check webhook."
+                );
+                toast.error(
+                  "Could not load user profile. Please try refreshing."
+                ); // User-facing error after retries
+              }
+              setUserData(null);
+              setIsEducator(user.publicMetadata?.role === "educator");
+              setIsUserDataLoading(false); // Stop loading on final failure
+              fetchUserAttempt.current = 0; // Reset attempts
             }
+          }
         } catch (error) {
              toast.error(`Fetch User Data Network Error: ${error.message}`);
              setUserData(null);
